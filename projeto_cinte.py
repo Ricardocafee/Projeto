@@ -17,50 +17,100 @@ from sklearn.inspection import DecisionBoundaryDisplay
 from matplotlib.colors import ListedColormap
 from mpl_toolkits.mplot3d import axes3d, Axes3D
 
-def function_plot(frame):
-    #frame.plot(x='Time', y="S1Temp", title='Date = 11/01/2021')  
-    #frame.plot(x='Time', y="S2Temp", title='Date = 11/01/2021')  
-    #frame.plot(x='Time', y="S3Temp", title='Date = 11/01/2021')  
-    #frame.plot(x='Time', y="S1Light", title='Date = 11/01/2021')  
-    #frame.plot(x='Time', y="S2Light", title='Date = 11/01/2021')    
-    #frame.plot(x='Time', y="S3Light", title='Date = 11/01/2021')    
-    #frame.plot(x='Time', y="CO2")
-    #frame.plot(x='Time', y="PIR1")
-    frame.plot(x='Time', y="PIR2")
-    frame.plot(x='Time', y="Persons")
+indexes_sensors = {
+    0:"S1Temp",
+    1:"S2Temp",
+    2:"S3Temp",
+    3:"S1Light",
+    4:"S2Light",
+    5:"S3Light",
+    6:"CO2",
+    7:"PIR1",
+    8:"PIR2",
+    9:"Persons",
+}
 
-    
+window_sensors = {
+    0:5,         #S1Temp
+    1:5,         #S2Temp
+    2:5,         #S3Temp
+    3:10,         #S1Light
+    4:5,         #S2Light
+    5:5,         #S3Light
+    6:5,         #CO2
+    7: 20,       #PIR1
+    8: 20,       #PIR2
+}
+
+k_sensors = {
+    0:1.75,     #S1Temp
+    1:1.8,      #S2Temp
+    2:1.75,     #S3Temp
+    3:2.7,     #S1Light
+    4:1.8,      #S2Light
+    5:1.8,     #S3Light
+    6:1.8,      #CO2
+    7: 2,       #PIR1
+    8: 2,       #PIR2
+}
+
+k_sensors_time = {
+    0:5,     #S1Temp
+    1:6,      #S2Temp
+    2:5,     #S3Temp
+    3:6,     #S1Light
+    4:6,      #S2Light
+    5:6,     #S3Light
+    6:1000,      #CO2
+    7: 1000,       #PIR1
+    8: 1000,       #PIR2
+}
+
+
+
+
+class average_persons:
+    def __init__(self, sensor,df,k):
+        self.sensor = sensor
+        self.df = df
+        self.mean0 = df.loc[df['Persons'] == 0, sensor].mean()
+        self.std0 = df.loc[df['Persons'] == 0, sensor].std() 
+        self.mean1 = df.loc[df['Persons'] == 1, sensor].mean()
+        self.std1 = df.loc[df['Persons'] == 1, sensor].std() 
+        self.mean2 = df.loc[df['Persons'] == 2, sensor].mean()
+        self.std2 = df.loc[df['Persons'] == 2, sensor].std() 
+        self.mean3 = df.loc[df['Persons'] == 3, sensor].mean()
+        self.std3 = df.loc[df['Persons'] == 3, sensor].std() 
+        self.k = k
+
+def function_plot(frame):
+
+    #for index in range(10):
+       # frame.plot(x="Time",y=indexes_sensors[index])
+
+    #plt.scatter(x=frame["CO2"], y = frame["Persons"])
+    #plt.xlim([0,400])
+    frame.plot(x="Time", y = "S3Light")
 
 def remove_outliers(df):
-    average_s1temp = df["S1Temp"].rolling(window=5).mean()
-    std_s1temp = df["S1Temp"].rolling(window=5).std()
 
-    average_s2temp = df["S2Temp"].rolling(window=5).mean()
-    std_s2temp = df["S2Temp"].rolling(window=5).std()
+    #Based on time
 
-    average_s3temp = df["S3Temp"].rolling(window=5).mean()
-    std_s3temp = df["S3Temp"].rolling(window=5).std()
 
-    average_s1light = df["S1Light"].rolling(window=8).mean()
-    std_s1light = df["S1Light"].rolling(window=8).std()
+    average_time = np.zeros((8,len(df)))
+    std_time = np.zeros((8,len(df)))  
 
-    average_s2light = df["S2Light"].rolling(window=5).mean()
-    std_s2light = df["S2Light"].rolling(window=5).std()
+    #Based on time
 
-    average_s3light = df["S3Light"].rolling(window=5).mean()
-    std_s3light = df["S3Light"].rolling(window=5).std()
-
-    average_co2 = df["CO2"].rolling(window=5).mean()
-    std_co2 = df["CO2"].rolling(window=5).std()
-
-    average_pir1 = df["PIR1"].rolling(window=20).mean()
-    std_pir1 = df["PIR1"].rolling(window=20).std()
-
-    average_pir2 = df["PIR2"].rolling(window=20).mean()
-    std_pir2 = df["PIR2"].rolling(window=20).std()
+    for index in range(8):
+        average_time[index]=df[indexes_sensors[index]].rolling(window=window_sensors[index]).mean()
+        std_time[index]=df[indexes_sensors[index]].rolling(window=window_sensors[index]).std()
 
     sample = pd.DataFrame(df).to_numpy()
+        
+    count = 0     
 
+    average_std = [0,0,0,0,0,0,0,0]
 
     for i in range(len(df)):
         time = sample[i,1]
@@ -75,46 +125,68 @@ def remove_outliers(df):
             sample[i,10] = 0     #PIR2
 
         if(i>4):
-            if(sample[i,2] > average_s1temp[i]+1.75*std_s1temp[i] or sample[i,2] < average_s1temp[i]-1.75*std_s1temp[i]):
-                sample[i,2]=sample[i-1,2]
+            for j in range(8):
 
-            if(sample[i,3] > average_s2temp[i]+1.8*std_s2temp[i] or sample[i,3] < average_s2temp[i]-1.8*std_s2temp[i]):
-                sample[i,3]=sample[i-1,3]
+                if(sample[i,j+2] > average_time[j][i]+k_sensors[j]*std_time[j][i] or sample[i,j+2] < average_time[j][i] - k_sensors[j]*std_time[j][i]):
+                    sample[i,j+2]=sample[i-1,j+2]
+                    #print(indexes_sensors[j])
+                    count = count+1
 
-            if(sample[i,4] > average_s3temp[i]+1.75*std_s3temp[i] or sample[i,4] < average_s3temp[i]-1.75*std_s3temp[i]):
-                sample[i,4]=sample[i-1,4]
+                
+            if(sample[i,5] > 1000):       #Especific case: Date 12/01
+                sample[i,5]=sample[i-1,5]  #S1Light
+                #count = count+1
 
-            if(sample[i,5] > average_s1light[i]+2.45*std_s1light[i] or sample[i,5] < average_s1light[i]-2.45*std_s1light[i]):
-                sample[i,5]=sample[i-1,5]
-            elif(sample[i,5] > 1000):       #Especific case: Date 12/01
-                sample[i,5]=sample[i-1,5]
+            if(i>=1 and i < len(df)-1):
+            
+                if(sample[i-1,9]==0 and sample[i+1,9]==0 and sample[i,11]==0 and sample[i,9]==1):      #PIR1
+                    sample[i,9]=0
+                    count = count+1
+                if(sample[i-1,10]==0 and sample[i+1,10]==0 and sample[i,11]==0) and sample[i,10]==1:       #PIR2
+                    sample[i,11]=0
+                    count = count+1
 
-            if(sample[i,6] > average_s2light[i]+1.8*std_s2light[i] or sample[i,6] < average_s2light[i]-1.8*std_s2light[i]):
-                sample[i,6]=sample[i-1,6]
+    #average_std = np.zeros((8,))  
+    average_std = [0,0,0,0,0,0,0,0]
 
-            if(sample[i,7] > average_s3light[i]+1.78*std_s3light[i] or sample[i,7] < average_s3light[i]-1.78*std_s3light[i]):
-                sample[i,7]=sample[i-1,7]
+    for index in range(8):
+        average_std[index] = average_persons(indexes_sensors[index],df,k_sensors_time[index]) 
 
-            if(sample[i,8] > average_co2[i]+1.8*std_co2[i] or sample[i,8] < average_co2[i]-1.8*std_co2[i]):
-                sample[i,8]=sample[i-1,8]
-
-            if((sample[i,9] > average_pir1[i]+2*std_pir1[i] or sample[i,9] < average_pir1[i]-2*std_pir1[i]) and sample[i,11] == 0):
-                sample[i,9]=sample[i-1,9]
-
-            if((sample[i,10] > average_pir2[i]+2*std_pir2[i] or sample[i,10] < average_pir2[i]-2*std_pir2[i]) and sample[i,11]==0):
-                sample[i,10]=sample[i-1,10]
-
-        if(i>=1 and i < len(df)-1):
-         
-            if(sample[i-1,9]==0 and sample[i+1,9]==0 and sample[i,11]==0):      #PIR1
-                sample[i,9]=0
-            if(sample[i-1,10]==0 and sample[i+1,10]==0 and sample[i,11]==0):       #PIR2
-                sample[i,11]=0
     
+    for i in range(len(df)):
+        
+    
+        for j in range(6):
+
+            if(sample[i,11] == 0):
+                if(sample[i,j+2] > average_std[j].mean0+average_std[j].k*average_std[j].std0 or sample[i,j+2] < average_std[j].mean0-average_std[j].k*average_std[j].std0):
+                    sample[i,j+2]=average_std[j].mean0
+                    
+                    count=count+1
+            if(sample[i,11] == 1):
+                if(sample[i,j+2] > average_std[j].mean1+average_std[j].k*average_std[j].std1 or sample[i,j+2] < average_std[j].mean1-average_std[j].k*average_std[j].std1):
+                    sample[i,j+2]=average_std[j].mean1
+                    
+                    count=count+1
+            if(sample[i,11] == 2):
+                if(sample[i,j+2] > average_std[j].mean2+average_std[j].k*average_std[j].std2 or sample[i,j+2] < average_std[j].mean2-average_std[j].k*average_std[j].std2):
+                    sample[i,j+2]=average_std[j].mean2
+                    
+                    count=count+1
+            if(sample[i,11] == 3):
+                if(sample[i,j+2] > average_std[j].mean3+average_std[j].k*average_std[j].std3 or sample[i,j+2] < average_std[j].mean3-average_std[j].k*average_std[j].std3):
+                    sample[i,j+2]=average_std[j].mean3
+                    
+                    count=count+1
+    print(count)
+                        
+
+                
+            
+        
     df = pd.DataFrame(sample, columns=["Date","Time","S1Temp","S2Temp","S3Temp","S1Light","S2Light","S3Light","CO2","PIR1","PIR2","Persons","Overcrowded"])
     return df
-    
-                   
+          
     
 
 df = pd.read_csv("Proj1_Dataset.csv")
@@ -132,18 +204,17 @@ df_4=df.loc[df['Date'] == "14/01/2021"]
 df_5=df.loc[df['Date'] == "15/01/2021"]
 df_6=df.loc[df['Date'] == "16/01/2021"]
 
-function_plot(df_2)
 
 #Removing outliers
-df = remove_outliers(df)
-    
-df_ = df.loc[df['Date'] == "11/01/2021"]
-df_2 = df.loc[df['Date'] == "12/01/2021"]
-df_3 = df.loc[df['Date'] == "13/01/2021"]
-df_4 = df.loc[df['Date'] == "14/01/2021"]
-df_5 = df.loc[df['Date'] == "15/01/2021"]
-df_6 = df.loc[df['Date'] == "16/01/2021"]
+df_ = remove_outliers(df_)
+df_2 = remove_outliers(df_2)
+df_3 = remove_outliers(df_3)
+df_4 = remove_outliers(df_4)
+df_5 = remove_outliers(df_5)
+df_6 = remove_outliers(df_6)
 
-function_plot(df_2)
+df_new = pd.concat([df_,df_2,df_3,df_4,df_5,df_6],axis=0)
+
+
 
 plt.show()
