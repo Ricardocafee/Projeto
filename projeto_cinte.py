@@ -8,7 +8,7 @@ import seaborn as sns
 
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import GaussianNB
-from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix, f1_score, make_scorer
+from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix, f1_score, make_scorer, get_scorer_names
 from sklearn.svm import LinearSVC
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
@@ -19,7 +19,7 @@ from matplotlib.colors import ListedColormap
 from mpl_toolkits.mplot3d import axes3d, Axes3D
 from imblearn.over_sampling import SMOTE
 from sklearn.neural_network import MLPClassifier
-from sklearn.model_selection import cross_val_score, ShuffleSplit, GridSearchCV
+from sklearn.model_selection import cross_val_score, ShuffleSplit, GridSearchCV, cross_validate
 from sklearn import preprocessing
 
 indexes_sensors = {
@@ -171,12 +171,13 @@ def remove_outliers(df):
   
     print(count)
 
-    df["S1Temp"] = df["S1Temp"].diff(periods=70)
-    df["S2Temp"] = df["S2Temp"].diff(periods=70)
-    df["S3Temp"] = df["S3Temp"].diff(periods=70)
+    
 
 
     df = pd.DataFrame(sample, columns=["Date","Time","S1Temp","S2Temp","S3Temp","S1Light","S2Light","S3Light","PIR1","PIR2","Persons","Overcrowded","Slope_CO2", "Parts of the day"])
+    df["S1Temp"] = df["S1Temp"].diff(periods=70)
+    df["S2Temp"] = df["S2Temp"].diff(periods=70)
+    df["S3Temp"] = df["S3Temp"].diff(periods=70)
 
     return df
           
@@ -215,6 +216,8 @@ x = df_new.values
 min_max_scaler = preprocessing.MinMaxScaler()
 x_scaled = min_max_scaler.fit_transform(x)
 df = pd.DataFrame(x_scaled, columns=["S1Temp","S2Temp","S3Temp","S1Light","S2Light","S3Light","PIR1","PIR2","Persons","Overcrowded","Slope_CO2", "Parts of the day"])
+df = df.round(6)
+df.to_csv('data_preprocessed.csv')
 
 #Binary classification problem
 X = df_new[{"S1Temp", "S2Temp", "S3Temp","S1Light","S2Light","S3Light","PIR1","PIR2","Slope_CO2", "Parts of the day"}].to_numpy()
@@ -237,8 +240,8 @@ X_res, y_res = sm.fit_resample(X_train, y_train)
 #print(counter)
 
 
-clf = MLPClassifier(solver='lbfgs',activation='relu',random_state=1, max_iter=3000,alpha=1e-6).fit(X_train, y_train)
-"""scores = cross_val_score(clf, X_train, y_train,scoring="precision", cv =10)
+"""clf = MLPClassifier(solver='lbfgs',activation='relu',random_state=1, max_iter=4000,alpha=1e-6).fit(X_train, y_train)
+scores = cross_val_score(clf, X_train, y_train,scoring="precision", cv =10)
 print("Precision: ", scores.mean())
 scores = cross_val_score(clf, X_train, y_train,scoring="recall", cv =10)
 print("Recall: ", scores.mean())
@@ -249,19 +252,43 @@ print("F1 Score: ", scores.mean())"""
 
 
 
-y_pred = clf.predict(X_test)
+"""y_pred = clf.predict(X_train)
 
-y_test= y_test.astype('int')
+y_train= y_train.astype('int')
 y_pred= y_pred.astype('int')
 
-prec = precision_score(y_test,y_pred)
-recall = recall_score(y_test,y_pred)
-acc = accuracy_score(y_test,y_pred)
-f1 = f1_score(y_test,y_pred)
+prec = precision_score(y_train,y_pred)
+recall = recall_score(y_train,y_pred)
+acc = accuracy_score(y_train,y_pred)
+f1 = f1_score(y_train,y_pred)
 print("Precision: ",prec)
 print("Recall: ",recall)
 print("Accuracy: ",acc)
-print("F1: ",f1)
+print("F1: ",f1)"""
 
+#Multiclass classification problem
+X = df_new[{"S1Temp", "S2Temp", "S3Temp","S1Light","S2Light","S3Light","PIR1","PIR2","Slope_CO2", "Parts of the day"}].to_numpy()
+y = df_new[{"Persons"}].to_numpy()
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.15, random_state=42) 
+
+y_train= y_train.astype('int')
+y_train=np.ravel(y_train)
+names = get_scorer_names()
+#print(names)
+
+sm = SMOTE(random_state=42)
+X_res, y_res = sm.fit_resample(X_train, y_train)
+
+clf = MLPClassifier(solver='sgd',activation='relu',random_state=1, max_iter=400, learning_rate="adaptive").fit(X_res, y_res)
+
+scoring=['precision_macro','recall_macro','accuracy','f1_macro']
+
+scores = cross_validate(clf, X_train, y_train,scoring=scoring, cv =10)
+
+print("Precision: ", scores["test_precision_macro"].mean())
+print("Recall: ", scores["test_recall_macro"].mean())
+print("F1: ", scores["test_f1_macro"].mean())
+print("Accuracy: ", scores["test_accuracy"].mean())
 
 plt.show()
