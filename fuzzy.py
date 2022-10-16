@@ -3,35 +3,38 @@ import numpy as np
 from skfuzzy import control as ctrl
 import matplotlib.pyplot as plt
 import pandas as pd
+import matplotlib
 
 names =['S1Temp','S2Temp','S3Temp','S1Light','S2Light','S3Light','PIR1','PIR2','Persons','Overcrowded','Slope_CO2','Parts of the day']
 
 df = pd.read_csv('data_preprocessed.csv',usecols=names)
 
-df['AvTemp'] = (df['S1Temp'] + df['S2Temp'])/2
+df['AvTemp'] = 100*(df['S1Temp'] + df['S2Temp'])/2
 df['AvLight'] = (df['S1Light'] + df['S2Light'] + df['S3Light'])/3
-df['AvPIR'] = (df['PIR1'] + df['PIR2'])/2
-df = df.round()
 
+
+df['AvPIR'] = (df['PIR1'] + df['PIR2'])/2
+df['2nd_slope'] = df['Slope_CO2'].diff(periods=50)
+df = df.round()
 #print(df)
 #print(df['Parts of the day'].max())
 
 #input
-part_of_day  = ctrl.Antecedent(np.arange(1, 6, 1), 'part_of_day')
-light = ctrl.Antecedent(np.arange(0, 501, 1), 'light')
-pir = ctrl.Antecedent(np.arange(0, 2, 1), 'pir')
-c02_slope = ctrl.Antecedent(np.arange(-300, 301, 1), 'c02_slope')
 
+light = ctrl.Antecedent(np.arange(0, 501, 1), 'light')
+#pir = ctrl.Antecedent(np.arange(0, 1.1, 0.1), 'pir')
+c02_slope = ctrl.Antecedent(np.arange(-300, 301, 1), 'c02_slope')
+c02_slope2nd = ctrl.Antecedent(np.arange(-300, 301, 1), 'c02_slope2nd')
+temp = ctrl.Antecedent(np.arange(-100, 101, 1), 'temp')
 #output
 overcrowded = ctrl.Consequent(np.arange(0, 2, 1), 'overcrowded')
 
 
 #input membership
-part_of_day['morning'] = fuzz.trimf(part_of_day.universe, [0, 1, 2])
-part_of_day['afternoon'] = fuzz.trimf(part_of_day.universe, [1, 2, 3])
-part_of_day['midday'] = fuzz.trimf(part_of_day.universe, [2, 3, 4])
-part_of_day['evening'] = fuzz.trimf(part_of_day.universe, [3, 4, 5])
-part_of_day['night'] = fuzz.trimf(part_of_day.universe, [4, 5, 5])
+temp['low'] = fuzz.trapmf(temp.universe, [-100, -100, -40,-20])
+temp['medium'] = fuzz.trapmf(temp.universe, [-30, -20,20, 30])
+temp['high'] = fuzz.trapmf(temp.universe, [20, 30, 100,100])
+
 
 light['low'] = fuzz.trapmf(light.universe, [0, 0, 90,110])
 light['medium_low'] = fuzz.trapmf(light.universe, [90, 110, 190,210])
@@ -41,22 +44,30 @@ light['high'] = fuzz.trapmf(light.universe, [340, 360, 500,500])
 c02_slope['negative'] = fuzz.trimf(c02_slope.universe, [-300, -300, 25])
 c02_slope['positive'] = fuzz.trimf(c02_slope.universe, [-25, 300, 300])
 
-pir['low'] = fuzz.trimf(pir.universe, [0, 0, 0.6])
-pir['high'] = fuzz.trimf(pir.universe, [0.4, 1, 1])
+c02_slope2nd['negative'] = fuzz.trapmf(c02_slope.universe, [-300, -300,-50, 0])
+c02_slope2nd['constante'] = fuzz.trapmf(c02_slope.universe, [-25, 0, 25,50])
+c02_slope2nd['positive'] = fuzz.trapmf(c02_slope.universe, [25, 75, 300,300])
 
+"""pir['low'] = fuzz.trimf(pir.universe, [0, 0, 0.3])
+pir['middle'] = fuzz.trimf(pir.universe, [0.2, 0.5, 0.8])
+pir['high'] = fuzz.trimf(pir.universe, [0.7, 1, 1])
+"""
 #output membership
 overcrowded['false'] = fuzz.trimf(overcrowded.universe, [0, 0, 1])
 overcrowded['true'] = fuzz.trimf(overcrowded.universe, [0, 1, 1])
 
 #view membership
-part_of_day.view()
+""""
+temp.view()
 light.view()
 pir.view()
 c02_slope.view()
+c02_slope2nd.view()
 #overcrowded.view()
 plt.show()
-
+"""
 ############# rules
+"""
 rule1 = ctrl.Rule(light['high']        & (c02_slope['negative'] | pir['high']),overcrowded['false'])
 rule2 = ctrl.Rule(light['medium_high'] & (c02_slope['positive'] | pir['high']),overcrowded['true'])
 
@@ -68,28 +79,86 @@ rule4 = ctrl.Rule(light['medium_low']                                         ,o
 
 rule5 = ctrl.Rule(light['medium_high']                                        ,overcrowded['false'])
 rule6 = ctrl.Rule(light['high']                                               ,overcrowded['true'])
+"""
 
 #rule1.view()
 #plt.show()
 
-overcrowded_ctrl = ctrl.ControlSystem([rule1, rule2, rule3,rule4,rule5,rule6])
+rule1 = ctrl.Rule(c02_slope['positive'] & c02_slope2nd['positive'] & temp['high'],overcrowded['true'])
+rule2 = ctrl.Rule(light['medium_low'] & ~(c02_slope['positive'] & c02_slope2nd['positive'] & temp['high']),overcrowded['false'])
+rule3 = ctrl.Rule((light['medium_high']|light['high']) & c02_slope['positive'] & c02_slope2nd['positive'] & temp['medium'],overcrowded['true'])
+rule4 = ctrl.Rule((light['medium_high'] & ~(c02_slope['positive'] & c02_slope2nd['positive'] & (temp['medium']|temp['high']))),overcrowded['false'])
+rule5 = ctrl.Rule((light['high'] & temp['high']),overcrowded['true'])
+rule6 = ctrl.Rule((light['high'] & temp['low']) ,overcrowded['false'])
+rule7 = ctrl.Rule((light['high'] & c02_slope['negative'] & (c02_slope2nd['positive'] | c02_slope2nd['negative'])& temp['medium']),overcrowded['false'])
+rule8 = ctrl.Rule((light['high'] & (c02_slope['negative'] | c02_slope['positive']) & (c02_slope2nd['constante'] | c02_slope2nd['negative']) & temp['medium']),overcrowded['true'])
+rule9 = ctrl.Rule((light['low'] & c02_slope['positive'] & c02_slope2nd['positive'] & temp['medium']),overcrowded['true'])
+rule10 = ctrl.Rule((light['low'] & (c02_slope['negative'] | c02_slope2nd['negative'])),overcrowded['false'])
+rule11 = ctrl.Rule((light['low'] & c02_slope['positive'] & (c02_slope2nd['constante'] | c02_slope2nd['positive']) & temp['low']),overcrowded['false'])
+rule12 = ctrl.Rule((light['low'] & c02_slope['positive'] & c02_slope2nd['constante'] & temp['high']),overcrowded['false'])
+rule13 = ctrl.Rule((light['low'] & c02_slope['positive'] & c02_slope2nd['constante'] & temp['medium']),overcrowded['false'])
+
+"""rule1 = ctrl.Rule(light['high'],overcrowded['true'])
+rule2 = ctrl.Rule(light['medium_high'],overcrowded['false'])
+rule3 = ctrl.Rule(light['medium_low'],overcrowded['false'])
+rule4 = ctrl.Rule(light['low'] & (c02_slope2nd['constante'] | c02_slope2nd['negative']),overcrowded['false'])
+rule5 = ctrl.Rule(light['low'] & c02_slope2nd['positive'] & pir['high'],overcrowded['true'])
+rule6 = ctrl.Rule(light['low'] & c02_slope2nd['positive'] & pir['low'],overcrowded['false'])
+rule7 = ctrl.Rule(light['low'] & c02_slope2nd['positive'] & pir['middle'],overcrowded['true'])
+rule8 = ctrl.Rule(temp['high'],overcrowded['true'])
+rule9 = ctrl.Rule(c02_slope['positive'] & temp['low'],overcrowded['false'])
+"""
+
+
+overcrowded_ctrl = ctrl.ControlSystem([rule1, rule2, rule3,rule4,rule5,rule6,rule7,rule8,rule9,rule10,rule11,rule12,rule13])
 
 over = ctrl.ControlSystemSimulation(overcrowded_ctrl)
 
 df['est_overcrowded'] = np.nan
 
 for index,row in df.iterrows():
-
+    #if(row)
     over.input['light'] = row['AvLight']
-    over.input['pir'] = row['AvPIR']
+    over.input['c02_slope2nd'] = row['2nd_slope']
+    over.input['temp'] = row['AvTemp']
     over.input['c02_slope'] = row['Slope_CO2']
-    over.input['part_of_day'] = row['Parts of the day']
-
     #Crunch the numbers
     over.compute()
-    df.iloc[index,15] = over.output['overcrowded'].round()
+    df.iloc[index,16] = over.output['overcrowded'].round()
 
 #print(df)
+
+colors = ['blue','red']
+colormap = matplotlib.colors.ListedColormap(colors)
+x = df.index
+
+plt.figure()
+plt.title("Light")
+y = df['AvLight']
+plt. scatter(x, y, c=np.where(df['Overcrowded'] == df['est_overcrowded'], 0, 1), cmap=colormap)
+
+plt.figure()
+plt.title("CO2")
+y = df['Slope_CO2']
+plt. scatter(x, y, c=np.where(df['Overcrowded'] == df['est_overcrowded'], 0, 1), cmap=colormap)
+
+
+plt.figure()
+plt.title("Persons")
+y = df['Persons']
+plt. scatter(x, y, c=np.where(df['Overcrowded'] == df['est_overcrowded'], 0, 1), cmap=colormap)
+
+plt.figure()
+plt.title("co2 declive")
+y = df['Slope_CO2'].diff(periods=50)
+plt. scatter(x, y, c=np.where(df['Overcrowded'] == df['est_overcrowded'], 0, 1), cmap=colormap)
+
+plt.figure()
+plt.title("temp")
+y = df['AvTemp']
+plt. scatter(x, y, c=np.where(df['Overcrowded'] == df['est_overcrowded'], 0, 1), cmap=colormap)
+
+
 
 #check TP fp fn tn
 df['tp'] = np.where((df['Overcrowded'] == 1) & (df['est_overcrowded'] == 1), 1, 0)
